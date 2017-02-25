@@ -1,0 +1,347 @@
+---
+title: "Weather data from Barajas Airport, Madrid between 1997 and 2015"
+author: "Team Radical"
+date: "December 18, 2016"
+output: pdf_document
+---
+
+##Introduction
+
+Aviation is greatly affected by weather compared to other modes of transportation. From thunderstorms and snow storms, to wind and fog as well as temperature and pressure extremes, every phase of flight has the potential to be impacted by weather. Bad weather may result in delays of flights and damages to the aircrafts during flight which eventually causes loss to the commercial aviation companies. Although there are many available forecasting techniques with the Air Traffic Control of various airports, there are still cases of wrong forecasts or sudden climate changes that were not expected at times. Our goal is to study the reasons for the events(rain, fog, thunderstorm,..etc) caused and its relationship with other weather variables like Temperature, Visibility,..etc from weather reports of Barajas Airport, Madrid between 1997 and 2015 and see if we can forecast the events that can be occurred weather and its change to ensure a safe flight from Barajas Airport, Madrid.
+
+##Data
+The data is orginally collected from https://www.wunderground.com/ and is made available to public by https://www.kaggle.com
+
+(https://www.kaggle.com/juliansimon/weather_madrid_lemd_1997_2015.csv)
+
+##Loading the dataset
+```{r, echo=FALSE}
+rm(list=ls())
+
+setwd("~/IS665/projectsources/")
+```
+
+```{r}
+weather <- read.csv(file = "weather.csv", header = TRUE)
+
+```
+
+##Exploring the dataset
+```{r, echo=FALSE}
+paste("Total rows in dataset: ", nrow(weather),
+      " & total values in dataset: ", (nrow(weather) * ncol(weather)))
+
+columnsWithNAs <- function(x){
+  TotalsNAs <- colSums(is.na(x))
+  TotalsNAs <- as.data.frame(TotalsNAs)
+  for(i in 1:ncol(x)){
+    TotalsNAs[i,2] <- typeof(x[,i])
+    TotalsNAs[i,3] <- class(x[,i])
+  }
+  colnames(TotalsNAs)[2] <- c("typeof")
+  colnames(TotalsNAs)[3] <- c("class")
+  return(TotalsNAs)
+}
+
+#paste("Column-wise total number of NA values in the dataset are as follows:")
+#columnsWithNAs(weather)
+
+paste("Total NA values in entire dataset:", sum(is.na(weather)))
+
+```
+
+There are total 23 variables in the dataset, each described as follows:-  
+  (1) CET - Date range from 1997-01-01 to 2015-12-31  
+  (2) Max.TemperatureC - Maximum Temperature in Celsius throughout the date range CET  
+  (3) Mean.TemperatureC - Mean Temperature in Celsius throughout the date range CET  
+  (4) Min.TemperatureC - Minimum Temperature in Celsius throughout the date range CET  
+  Dew point is the highest temperature at which airborne water vapor will condense to form liquid dew.A higher dew point means there will be more moisture in the air. Dew point is sometimes called "frost point" when the temperature is below freezing. The measurement of dew point is related to humidity.  
+  (5) Dew.PointC - Dew Point in Celsius throughout the date range CET  
+  (6) MeanDew.PointC - Mean Dew Point in Celsius throughout the date range CET  
+  (7) Min.DewpointC - Minimum Dew Point in Celsius throughout the date range CET  
+   Humidity is the amount of water vapor in the air. Water vapor is the gaseous state of water and is invisible. Humidity indicates the likelihood of precipitation, dew, or fog. It is expressed in gram per cubic meter.  
+  (8) Max.Humidity - Maximum Humidity throughout the date range CET  
+  (9) Mean.Humidity - Mean Humidity throughout the date range CET  
+  (10) Min.Humidity - Minimum Humidity throughout the date range CET  
+  Sea Level pressure is the atmospheric pressure at sea level. In the dataset, it is expressed in hPa which means hectoPascal.    
+  (11) Max.Sea.Level.PressurehPa - Maximum Sea Level Pressure throughout the date range CET  
+  (12) Mean.Sea.Level.PressurehPa - Mean Sea Level Pressure throughout the date range CET  
+  (13) Min.Sea.Level.PressurehPa - Minimum Sea Level Pressure throughout the date range CET  
+  Visibility is a measure of the distance at which an object or light can be clearly discerned. In the dataset, Visibility is expressed in Kilometers(Km).  
+  (14) Max.VisibilityKm - Maximum Visibility in Kilometers throughout the date range CET  
+  (15) Mean.VisibilityKm - Mean Visibility in Kilometers throughout the date range CET  
+  (16) Min.VisibilitykM - Minimum Visibility in Kilometers throughout the date range CET  
+  Wind speed is caused by air moving from high pressure to low pressure, usually due to changes in temperature. In the dataset, Wind speed is expressed in kilometer per hour(km/h).  
+  (17) Max.Wind.SpeedKm.h - Maximum Wind Speed in km/h throughout the date range CET  
+  (18) Mean.Wind.SpeedKm.h - Mean Wind Speed in km/h throughout the date range CET  
+  A gust is a sudden increase of the wind's speed that lasts no more than 20 seconds. This usually occurs when wind speeds reach a peak of at least 16 knots. A wind gust usually comes in 2-minute intervals. A wind gust comes quite suddenly and abruptly. There are a number of different reasons for wind gusts to occur. One of the causes for a wind gust is when there is a sudden shift from high pressure to low pressure. Another cause for a wind gust to occur is the terrain.  
+  (19) Max.Gust.SpeedKm.h - Maximum Speed in km/h throughout the date range CET  
+  (20) Precipitationmm - Precipitation is the standard way of measuring rainfall or snowfall is the standard rain gauge. It is measured in millimeters(mm).  
+  (21) CloudCover - Cloud cover (also known as cloudiness, cloudage or cloud amount) refers to the fraction of the sky obscured by clouds when observed from a particular location. Okta is the usual unit of measurement of the cloud cover. It's value ranges from 0(completely clear sky) to 9(sky obstructed from view)  
+  (22) Events - Natural weather changes like Rain, Snow, Fog, Thunderstorm etc caused one at a time or mixture of more than one.  
+  (23) WindDirDegrees - Wind direction is reported by the direction from which it originates. For example, a northerly wind blows from the north to the south. Wind direction is usually reported in cardinal directions or in azimuth degrees. For example, a wind coming from the south is given as 180 degrees; one from the east is 90 degrees.  
+
+##Data Preprocessing
+Though we have 23 variables(columns) in the dataset, our main focus is on only few variables that is used in further analysis of the project. Our variables of interest will be explained further.
+```{r, echo=FALSE}
+#Cloning the original dataset
+weather2 = weather
+
+paste("Data loss if na.omit() is performed on dataset:",
+      (nrow(weather2) - nrow(na.omit(weather2))),"rows")
+
+#Adding extra columns by splitting CET column (Date) into Year, Month, Date
+datetxt <- as.Date(weather2$CET)
+df <- data.frame(date = datetxt,
+                 year = as.numeric(format(datetxt, format = "%Y")),
+                 month = as.numeric(format(datetxt, format = "%m")),
+                 day = as.numeric(format(datetxt, format = "%d")))
+
+weather2$CET_Year = df$year
+weather2$CET_Month = df$month
+weather2$CET_Date = df$day
+rm(df, datetxt)
+
+#Giving Month names to the month CET_Month having digit months 
+#for the use in plots as labels
+monthName<-factor("CET_Month", levels=month.abb)
+monthNames<-month.abb
+for(i in 1:length(levels(monthName))){
+  for( j in 1:nrow(weather2)){
+    if(weather2$CET_Month[j]==i){
+      monthName[j]<-monthNames[i]
+    }
+  }
+}
+
+weather2$CET_Month <- monthName
+
+rm(i, j, monthName, monthNames)
+```
+
+In the Events column, as seen below there no NA values, but from the observations
+in the dataset we have noticed some values to be empty strings
+
+```{r, echo=FALSE}
+levels(weather2$Events)
+```
+
+As, we have gone through the dataset we have observed that only events are recorded
+when there is only a weather change from Normal.
+So, we are replacing the empty values into string value "Normal"
+
+```{r, echo=FALSE}
+levels(weather2$Events)[1] <- "Normal"
+paste("Total missing values in CloudCover column",sum(is.na(weather2$CloudCover)))
+```
+
+For the missing values (NA) in CloudCover columns,
+we are replacing the NA values into -1 ("instead of Missing Values - NA")
+Also, cloud cover range only from 0 to 8 in general.  
+Refer - https://en.wikipedia.org/wiki/Okta
+```{r, echo=FALSE}
+weather2$CloudCover[is.na(weather2$CloudCover) ] <- -1
+weather2$CloudCover <- as.factor(weather2$CloudCover)
+```
+
+In order to not loose data from all rows by omitting NA by rows, 
+we are transferring our interested variables for analysis into new R object 
+```{r, echo=FALSE}
+colsOfInterest <- c("CET", "CET_Year", "CET_Month", "CET_Date", "Mean.TemperatureC", 
+                    "Mean.Humidity", "MeanDew.PointC", "Mean.VisibilityKm", 
+                    "Precipitationmm", "CloudCover", "Events")
+
+weather2ForAnalysis <- weather2[,colsOfInterest]
+
+paste("Variables(columns) of interest for data analysis: ")
+colsOfInterest
+rm(colsOfInterest)
+
+paste("Column-wise NA totals in the final dataset that we are using for analysis: ")
+columnsWithNAs(weather2ForAnalysis)
+
+paste("Omitting rows containing NAs from final dataset:", 
+      (nrow(weather2ForAnalysis)-nrow(na.omit(weather2ForAnalysis))),"rows omitting")
+
+weather2ForAnalysis <-  na.omit(weather2ForAnalysis)
+
+weather2ForAnalysis$CET <- as.Date(weather2ForAnalysis$CET)
+
+##save.image("~/IS665/projectsources/initWS.RData")
+```
+
+##Exploratory Data Analysis
+
+##Summary statistics
+```{r}
+summary(weather2ForAnalysis)
+```
+
+##Visualization through various plots
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+require('ggplot2')
+
+ggplot(weather2ForAnalysis, aes(CET_Year, Mean.VisibilityKm, col = CET_Year)) + 
+  geom_point(alpha=.3, color='darkorange') + 
+  geom_smooth(fill = 'blue', color='darkblue',alpha=.2, size=1) + 
+  xlab("Year") + ylab("Mean Visibility in Km") + 
+  ggtitle("Mean Visibility in Km over Time")
+
+```
+In this plot, we can see that over time the change in mean visibility is 
+steady till the year 2011 and starting 2011 there is a sudden rise 
+which indicates some error or change of criteria.
+In order to be more meaningful we shifted our focus from the observations
+recorded starting the year 2012
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+trimmed <- weather2ForAnalysis[weather2ForAnalysis$CET_Year>2011,]
+
+trimmed$CET_Month <- as.factor(trimmed$CET_Month)
+trimmed$CET_Year <- as.factor(trimmed$CET_Year)
+
+averageofMVKm <- aggregate(trimmed$Mean.VisibilityKm, list(trimmed$CET_Month, trimmed$CET_Year), mean)
+colnames(averageofMVKm)<-c("CET_Month", "CET_Year", "Avg.Mean.VisibilityKm")
+
+ggplot(averageofMVKm, aes(CET_Year, Avg.Mean.VisibilityKm, col = CET_Year)) + 
+  geom_point() + 
+  facet_wrap(~CET_Month) +
+  xlab("Month") + ylab("Average of Mean Visibility in Km") + 
+  ggtitle("Average of Mean Visibility by Month and Year after 2011")
+
+```
+This plot gives the information of average mean visibility by month and year.
+It is clear that during the month of January after 2011, the average mean visibility 
+kept rising from year to year, which indicates that the visibility range is becoming clearer.
+In December after 2011, the average mean visibility showed variation and eventually 
+went down at the end of year 2015.
+This gives us a sign that the weather cycle is shifting during the timeframe over time.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+ggplot(trimmed, aes(CET, Mean.VisibilityKm, col = CloudCover)) + 
+  geom_line() + 
+  geom_smooth() + 
+  facet_wrap(~CloudCover) +
+  xlab("Year") + ylab("Mean Visibility in Km") + 
+  ggtitle("Mean Visibility over Time and by CloudCover after 2011")
+
+```
+In this plot, we have closely looked at three variables of interest namely 
+Mean.VisibilityKm, CloudCover and Time in years starting from 2012
+Time-series plot in the shows how the visibility is effected by cloud cover over years.
+As described previously, the less the cloud cover below the clear the sky is.
+-1 here is the replacement for missing values
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+ggplot(trimmed, aes(CET, Mean.VisibilityKm, col = Events)) + 
+  geom_line() + 
+  geom_smooth() + 
+  facet_wrap(~Events) +
+  xlab("Year") + ylab("Mean Visibility in Km") + 
+  ggtitle("Mean Visibility over Time and by Events after 2011")
+
+```
+
+This time series plot gives us visual information how the visibility 
+got effected by the causation of an event starting the year 2012.
+When closely observed we can see that for events such as Rain-Hail, 
+Rain-Hail-Thunderstorm and Snow were not much abundant. 
+
+##Predictive Analysis
+
+Our main forcus is on forecasting the events that can be occurred weather given various metrics of the weather from Barajas Airport, Madrid.
+
+We have chosen to use the Decision tree analysis to build the prediction model since we are making use of various weather metrics measured in numerics in order to predict a categorical variable that is Events.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+
+trimmed = trimmed[, 5:11]
+
+#Removing -1(which was used as placeholder for NA) values for better predictions
+trimmed = trimmed[-which(trimmed$CloudCover == -1 ),]
+
+trimmed$CloudCover = as.numeric(trimmed$CloudCover)
+
+paste('The columns used for prediction model from original dataset are: ');
+head(trimmed)
+
+n.trimmed <- data.frame(sapply(trimmed[,1:6], function(x) {
+  (x - min(x))/(max(x) - min(x))
+}))
+
+require(plyr)
+n.trimmed = mutate(n.trimmed, Events = trimmed$Events)
+paste("After normalization the data looks like this: ")
+head(n.trimmed)
+
+set.seed(12345)
+ind <- sample(2, nrow(trimmed), replace = TRUE, prob = c(0.67, 0.33))
+
+n.trimmed.training <- n.trimmed[ind == 1, ]
+n.trimmed.test <- n.trimmed[ind == 2, ]
+
+```
+
+```{r warning=FALSE, echo=FALSE, message=FALSE, fig.height=8, fig.width=10}
+
+#install.packages('tree', dependencies = TRUE)
+require("tree")
+my.model <- tree(Events ~ ., data = n.trimmed.training)
+
+plot(my.model)
+text(my.model, cex=.75, pretty = 0)
+```
+
+```{r warning=FALSE, echo=FALSE, message=FALSE}
+my.prediction = predict(my.model, n.trimmed.test, type = "class")
+##table(my.prediction, n.trimmed.test$Events)
+
+#install.packages('caret', dependencies = TRUE)
+require("caret")
+
+#install.packages('e1071', dependencies = TRUE)
+require("e1071")
+#confusionMatrix(table(my.prediction, n.trimmed.test$Events))
+
+require("tree")
+cv_tree = cv.tree(my.model, FUN = prune.misclass)
+names(cv_tree)
+
+plot(cv_tree$size, cv_tree$dev, type = "b")
+
+paste("Our pruned model is built considering best value to be 4");
+pruned.model = prune.misclass(my.model, best = 4)
+plot(pruned.model)
+text(pruned.model, pretty = 0)
+
+require("caret")
+require("e1071")
+pruned.prediction = predict(pruned.model, n.trimmed.test, type = "class")
+confusionMatrix(table(pruned.prediction, n.trimmed.test$Events))$overall["Accuracy"]
+```
+
+##Predictions -- Test dataset
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+test <- read.csv(file="test.csv", header=T, sep=",", dec=".")
+
+#head(test)
+
+n.test <- data.frame(sapply(test[,1:6], function(x) {
+  (x - min(x))/(max(x) - min(x))
+}))
+
+pruned.prediction = predict(pruned.model, n.test, type = "class")
+
+test[,"Events"] = pruned.prediction
+
+test
+```
+
+##Conclusion
+
+The accuracy of our pruned decision tree classification model(at best = 4) used for prediction is 80.75%. This means the predicted values are expected to be 80.75% true when compared to the actual values. The final model predicts i.e., categorizies the test values into Events(leaf nodes) based on its nodes at higher levels. The prediction is carried out by categorizing the test value through a certain path along the nodes by checking the condition stated at each node. If a condition at a node is statisfied then it goes into next lower level and searches for the condition at the next child node and this process goes on till the leaf node is reached. Therefore, the leaf node where the process stops at is the category of the prediction variable(in our case, Events variable's category).
+
+We have learnt from this project that for an event to be occurred in weather it completely depends on the metrics of the weather and their changes. Also, sometimes even global warming and pollution can be a reason for bad weather conditions. A clean and pollution free environment by the humans can atleast make the weather little better.
+
+
